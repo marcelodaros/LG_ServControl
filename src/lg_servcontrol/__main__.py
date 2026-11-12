@@ -1,12 +1,17 @@
-"""Sobe o servidor. Até existir o Emissor IR real (#3), usa um emissor que só registra no log."""
+"""Sobe o servidor.
+
+Usa o Emissor IR configurado em `emissor_ir.json` (ver `python -m lg_servcontrol.configurar`).
+Com LG_SERVCONTROL_SIMULAR=1, usa um emissor simulado que só registra no log.
+"""
 
 import logging
 import os
 
 import uvicorn
 
-from lg_servcontrol.app import create_app
+from lg_servcontrol.app import create_app, montar_app
 from lg_servcontrol.codigos_ir import CodigoIR
+from lg_servcontrol.configuracao import CAMINHO_PADRAO
 from lg_servcontrol.emissor_ir import EmissorIRFalso
 
 log = logging.getLogger("lg_servcontrol")
@@ -24,7 +29,13 @@ class EmissorIRDeLog(EmissorIRFalso):
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     porta = int(os.environ.get("PORT", "8000"))
-    uvicorn.run(create_app(emissor=EmissorIRDeLog()), host="0.0.0.0", port=porta)
+    if os.environ.get("LG_SERVCONTROL_SIMULAR") == "1":
+        app = create_app(emissor=EmissorIRDeLog())
+    else:
+        from lg_servcontrol.emissor_local import EmissorIRLocal
+
+        app = montar_app(CAMINHO_PADRAO, EmissorIRLocal)
+    uvicorn.run(app, host="0.0.0.0", port=porta)
 
 
 if __name__ == "__main__":

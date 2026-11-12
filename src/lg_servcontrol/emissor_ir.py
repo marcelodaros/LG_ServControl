@@ -16,6 +16,9 @@ class EmissorIR(Protocol):
     def aprender(self, timeout_s: float) -> CodigoIR | None:
         """Captura um Código IR de um controle real; None se expirar."""
 
+    def verificar(self) -> None:
+        """Confirma que o Emissor IR responde; lança ErroComunicacaoEmissorIR se não."""
+
 
 class EmissorIRFalso:
     """Registra os Códigos IR enviados; pode simular falha e aprendizado."""
@@ -34,3 +37,7 @@ class EmissorIRFalso:
 
     def aprender(self, timeout_s: float) -> CodigoIR | None:
         return self.aprendido
+
+    def verificar(self) -> None:
+        if self.falhar:
+            raise ErroComunicacaoEmissorIR("Emissor IR falso configurado para falhar")

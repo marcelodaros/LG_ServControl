@@ -7,7 +7,10 @@
   <style>
     :root { --fundo: #111; --corpo: #1e1e1e; --tecla: #2c2c2c; --texto: #eee; --vermelho: #c62828; --ok: #66bb6a; --erro: #ef5350; }
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start;
+    .aviso { width: 100%; max-width: 280px; margin-bottom: 16px; padding: 12px 14px; border-radius: 12px;
+             background: #3a2a00; color: #ffd54f; font-size: 14px; line-height: 1.4; }
+    .aviso.desconectado { background: #3b1414; color: #ef9a9a; }
+    body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; align-items: center;
            background: var(--fundo); color: var(--texto); font-family: system-ui, -apple-system, sans-serif; padding: 24px 16px; }
     .controle { width: 100%; max-width: 280px; background: var(--corpo); border-radius: 32px; padding: 24px 20px;
                 display: flex; flex-direction: column; align-items: center; gap: 16px; }
@@ -21,11 +24,21 @@
   </style>
 </head>
 <body>
+  <div class="aviso" role="alert" hidden></div>
   <main class="controle">
     <button class="tecla" data-tecla="POWER" aria-label="Ligar/desligar">⏻</button>
     <div class="retorno" role="status" aria-live="polite"></div>
   </main>
   <script>
+    const aviso = document.querySelector('.aviso');
+    fetch('/api/emissor/estado').then((r) => r.json()).then(({ estado, mensagem }) => {
+      if (estado === 'conectado') return;
+      aviso.textContent = estado === 'nao_configurado'
+        ? 'Emissor IR não configurado. ' + mensagem
+        : mensagem;
+      aviso.classList.add(estado);
+      aviso.hidden = false;
+    }).catch(() => {});
     const retorno = document.querySelector('.retorno');
     function mostrar(texto, tipo) {
       retorno.textContent = texto;

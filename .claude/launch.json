@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "servcontrol",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "lg_servcontrol"],
+      "port": 8000
+    }
+  ]
+}

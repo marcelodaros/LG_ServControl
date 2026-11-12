@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Controle LG</title>
+  <style>
+    :root { --fundo: #111; --corpo: #1e1e1e; --tecla: #2c2c2c; --texto: #eee; --vermelho: #c62828; --ok: #66bb6a; --erro: #ef5350; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start;
+           background: var(--fundo); color: var(--texto); font-family: system-ui, -apple-system, sans-serif; padding: 24px 16px; }
+    .controle { width: 100%; max-width: 280px; background: var(--corpo); border-radius: 32px; padding: 24px 20px;
+                display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    button.tecla { border: 0; color: var(--texto); background: var(--tecla); border-radius: 50%; width: 64px; height: 64px;
+                   font-size: 13px; font-weight: 600; letter-spacing: .5px; cursor: pointer; touch-action: manipulation; }
+    button.tecla:active { transform: scale(.95); }
+    button.tecla[data-tecla="POWER"] { background: var(--vermelho); }
+    .retorno { min-height: 1.4em; font-size: 14px; text-align: center; }
+    .retorno.ok { color: var(--ok); }
+    .retorno.erro { color: var(--erro); }
+  </style>
+</head>
+<body>
+  <main class="controle">
+    <button class="tecla" data-tecla="POWER" aria-label="Ligar/desligar">⏻</button>
+    <div class="retorno" role="status" aria-live="polite"></div>
+  </main>
+  <script>
+    const retorno = document.querySelector('.retorno');
+    function mostrar(texto, tipo) {
+      retorno.textContent = texto;
+      retorno.className = 'retorno ' + tipo;
+    }
+    document.querySelectorAll('button.tecla').forEach((botao) => {
+      botao.addEventListener('click', async () => {
+        const tecla = botao.dataset.tecla;
+        try {
+          const resp = await fetch(`/api/teclas/${encodeURIComponent(tecla)}/enviar`, { method: 'POST' });
+          const corpo = await resp.json().catch(() => ({}));
+          if (resp.ok) mostrar('Enviado ao Emissor IR', 'ok');
+          else mostrar(corpo.mensagem || 'Erro ao enviar', 'erro');
+        } catch (e) {
+          mostrar('Sem conexão com o servidor', 'erro');
+        }
+      });
+    });
+  </script>
+</body>
+</html>

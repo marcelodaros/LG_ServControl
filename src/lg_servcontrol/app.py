@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from lg_servcontrol.codigos_ir import TeclaDesconhecida, codigo_da_tecla
+from lg_servcontrol.codigos_ir import TECLAS_COMUNS, TeclaDesconhecida, codigo_da_tecla
 from lg_servcontrol.configuracao import ConfiguracaoEmissorIR, ConfiguracaoInvalida, carregar
 from lg_servcontrol.emissor_ir import EmissorIR, ErroComunicacaoEmissorIR
 
@@ -48,6 +48,12 @@ def create_app(emissor: EmissorIR | None, problema_configuracao: str | None = No
         except ErroComunicacaoEmissorIR as erro:
             return {"estado": "desconectado", "mensagem": f"O Emissor IR não respondeu: {erro}"}
         return {"estado": "conectado", "mensagem": "Emissor IR respondendo"}
+
+    @app.get("/api/teclas")
+    def listar_teclas():
+        return [
+            {"tecla": t.tecla, "rotulo": t.rotulo, "grupo": t.grupo} for t in TECLAS_COMUNS
+        ]
 
     @app.post("/api/teclas/{tecla}/enviar")
     def enviar_tecla(tecla: str):

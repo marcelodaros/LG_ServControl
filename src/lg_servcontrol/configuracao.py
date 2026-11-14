@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 CAMINHO_PADRAO = Path(os.environ.get("LG_SERVCONTROL_CONFIG", "emissor_ir.json"))
+CAMINHO_ESTADO = Path(os.environ.get("LG_SERVCONTROL_ESTADO", "estado.json"))
 
 COMO_CONFIGURAR = "Rode `python -m lg_servcontrol.configurar` para configurar o Emissor IR."
 

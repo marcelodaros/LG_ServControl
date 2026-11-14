@@ -5,10 +5,20 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
 
 from lg_servcontrol.codigos_ir import TECLAS_COMUNS, TeclaDesconhecida, codigo_da_tecla
 from lg_servcontrol.configuracao import ConfiguracaoEmissorIR, ConfiguracaoInvalida, carregar
 from lg_servcontrol.emissor_ir import EmissorIR, ErroComunicacaoEmissorIR
+from lg_servcontrol.modelo_tv import (
+    ANOS,
+    LINHAS,
+    CodigoNaoReconhecido,
+    EscolhaInvalida,
+    RepositorioModelo,
+    decodificar,
+    escolher,
+)
 
 log = logging.getLogger("lg_servcontrol")
 
@@ -16,18 +26,79 @@ log = logging.getLogger("lg_servcontrol")
 def montar_app(
     caminho_config: Path,
     fabrica_emissor: Callable[[ConfiguracaoEmissorIR], EmissorIR],
+    caminho_estado: Path | None = None,
 ) -> FastAPI:
     """Lê a configuração do Emissor IR e monta o app; configuração ruim não impede a subida."""
     try:
         config = carregar(caminho_config)
     except ConfiguracaoInvalida as erro:
         log.warning("Emissor IR não configurado: %s", erro)
-        return create_app(emissor=None, problema_configuracao=str(erro))
-    return create_app(emissor=fabrica_emissor(config))
+        return create_app(
+            emissor=None, problema_configuracao=str(erro), caminho_estado=caminho_estado
+        )
+    return create_app(emissor=fabrica_emissor(config), caminho_estado=caminho_estado)
 
 
-def create_app(emissor: EmissorIR | None, problema_configuracao: str | None = None) -> FastAPI:
+class EscolhaDoModelo(BaseModel):
+    codigo: str | None = None
+    linha: str | None = None
+    ano: int | None = None
+
+
+class CodigoDoModelo(BaseModel):
+    codigo: str = ""
+
+
+def _codigo_nao_reconhecido(codigo: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "erro": "codigo_nao_reconhecido",
+            "mensagem": f"Não reconheci o código '{codigo}'. Escolha a linha e o ano na lista.",
+        },
+    )
+
+
+def create_app(
+    emissor: EmissorIR | None,
+    problema_configuracao: str | None = None,
+    caminho_estado: Path | None = None,
+) -> FastAPI:
     app = FastAPI(title="LG ServControl")
+    repositorio = RepositorioModelo(caminho_estado)
+
+    @app.get("/api/modelo")
+    def modelo_atual():
+        modelo = repositorio.atual()
+        return {"modelo": modelo.como_json() if modelo else None}
+
+    @app.get("/api/modelo/opcoes")
+    def opcoes_de_modelo():
+        return {"linhas": list(LINHAS), "anos": list(ANOS)}
+
+    @app.post("/api/modelo/decodificar")
+    def decodificar_modelo(pedido: CodigoDoModelo):
+        try:
+            return decodificar(pedido.codigo).como_json()
+        except CodigoNaoReconhecido:
+            return _codigo_nao_reconhecido(pedido.codigo)
+
+    @app.put("/api/modelo")
+    def salvar_modelo(escolha: EscolhaDoModelo):
+        try:
+            if escolha.codigo:
+                modelo = decodificar(escolha.codigo)
+            else:
+                modelo = escolher(escolha.linha, escolha.ano)
+        except CodigoNaoReconhecido:
+            return _codigo_nao_reconhecido(escolha.codigo)
+        except EscolhaInvalida:
+            return JSONResponse(
+                status_code=422,
+                content={"erro": "escolha_invalida", "mensagem": "Escolha uma linha e um ano da lista."},
+            )
+        repositorio.salvar(modelo)
+        return {"modelo": modelo.como_json()}
 
     def _nao_configurado() -> JSONResponse:
         return JSONResponse(

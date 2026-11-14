@@ -11,3 +11,6 @@ devices.json
 tinytuya.json
 snapshot.json
 tuya-raw.json
+
+# Modelo da TV escolhido no app
+estado.json

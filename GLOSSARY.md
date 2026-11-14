@@ -34,8 +34,12 @@ _Avoid_: modo técnico, modo avançado
 A televisão LG que está sendo controlada.
 
 **Modelo da TV**:
-A identificação da TV escolhida pelo usuário, que determina quais teclas e Menus de Serviço se aplicam a ela.
+A identificação da TV escolhida pelo usuário, que determina quais teclas e Menus de Serviço se aplicam a ela. É definido por uma Linha e um ano, e opcionalmente pelo código do modelo.
 _Avoid_: perfil, tipo de TV
+
+**Linha**:
+A família de TVs LG a que o Modelo da TV pertence (OLED, QNED, NanoCell, UHD, Full HD).
+_Avoid_: série, categoria, tecnologia
 
 **Emissor IR**:
 O aparelho Tuya IR01 que recebe comandos pela rede e os transmite à TV como sinais infravermelhos.

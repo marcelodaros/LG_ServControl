@@ -154,3 +154,7 @@ LG_SERVCONTROL_SIMULAR=1 .venv/bin/python -m lg_servcontrol
 - Vocabulário do domínio: [`GLOSSARY.md`](GLOSSARY.md)
 - Decisões de arquitetura: [`docs/adr/`](docs/adr/)
 - Os testes passam pela API HTTP com um emissor falso; não precisam do aparelho.
+
+## Licença
+
+[MIT](LICENSE). O software é fornecido "como está", sem garantias: veja o aviso sobre os Menus de Serviço no início deste README.

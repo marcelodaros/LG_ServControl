@@ -152,6 +152,34 @@
     .dialogo .cancelar { background: var(--tecla); color: var(--texto); }
     .dialogo .ativar { background: var(--vermelho); color: #fff; }
 
+    /* ----- Ajustes ----- */
+    .ajustes {
+      width: 100%; max-width: 340px; background: var(--corpo); border: 1px solid var(--borda);
+      border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 18px;
+    }
+    .ajustes header { display: flex; justify-content: space-between; align-items: center; }
+    .ajustes h1 { margin: 0; font-size: 20px; }
+    .ajustes h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: .5px; color: var(--texto-fraco); text-transform: uppercase; }
+    .ajustes p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--texto-fraco); }
+    .ajustes .bloco { display: flex; flex-direction: column; gap: 10px; }
+    .ajustes select {
+      background: var(--tecla); border: 1px solid var(--borda); color: var(--texto); border-radius: 12px;
+      font: 16px inherit; font-family: inherit; padding: 12px; width: 100%;
+    }
+    .ajustes .botao {
+      border: 0; border-radius: 12px; padding: 13px; font: 600 15px inherit; font-family: inherit;
+      background: #3d5afe; color: #fff; cursor: pointer;
+    }
+    .ajustes .botao.secundario { background: var(--tecla); color: var(--texto); }
+    .ajustes .botao:disabled { opacity: .55; cursor: default; }
+    .status-aprendizado { padding: 12px; border-radius: 12px; font-size: 14px; background: #1f2230; color: var(--texto); }
+    .status-aprendizado.ok { background: #16261a; color: #a5d6a7; }
+    .status-aprendizado.erro { background: #3b1414; color: #ef9a9a; }
+    .lista-aprendidas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .lista-aprendidas li { display: flex; justify-content: space-between; align-items: center; background: var(--tecla);
+                           border-radius: 12px; padding: 6px 6px 6px 12px; font-size: 14px; }
+    button.tecla.aprendida { box-shadow: inset 0 0 0 2px #8ab4f8; }
+
     .retorno {
       position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
       max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 999px; font-size: 14px;
@@ -192,8 +220,36 @@
 
   <div class="modelo-atual" hidden>
     <span>Modelo: <strong id="descricao-modelo"></strong></span>
-    <button class="link" id="trocar-modelo" type="button">Trocar</button>
+    <button class="link" id="abrir-ajustes" type="button">Ajustes</button>
   </div>
+
+  <section class="ajustes" id="ajustes" aria-labelledby="titulo-ajustes" hidden>
+    <header>
+      <h1 id="titulo-ajustes">Ajustes</h1>
+      <button class="link" id="fechar-ajustes" type="button">Voltar ao controle</button>
+    </header>
+
+    <div class="bloco">
+      <h2>Modelo da TV</h2>
+      <p id="ajustes-modelo"></p>
+      <button class="botao secundario" id="trocar-modelo" type="button">Trocar modelo</button>
+    </div>
+
+    <div class="bloco">
+      <h2>Reaprender tecla</h2>
+      <p>Use quando uma tecla não funciona na sua TV. Aponte um controle LG de verdade para o
+        Emissor IR, toque em Reaprender e aperte a mesma tecla no controle em até 15 segundos.</p>
+      <select id="tecla-aprender" aria-label="Tecla para reaprender"></select>
+      <button class="botao" id="reaprender" type="button">Reaprender esta tecla</button>
+      <div class="status-aprendizado" id="status-aprendizado" role="status" hidden></div>
+    </div>
+
+    <div class="bloco">
+      <h2>Teclas aprendidas</h2>
+      <p id="sem-aprendidas">Nenhuma. Todas usam o Código IR gerado.</p>
+      <ul class="lista-aprendidas" id="lista-aprendidas"></ul>
+    </div>
+  </section>
 
   <section class="painel-servico" id="painel-servico" aria-label="Modo Serviço" hidden>
     <header>
@@ -339,6 +395,7 @@
       telaEscolha.hidden = true;
       barraModelo.hidden = false;
       controle.hidden = false;
+      carregarAprendiveis();
     }
 
     function mostrarEscolha() {
@@ -389,9 +446,79 @@
     confirmar.addEventListener('click', () => codigoDecifrado && salvar({ codigo: codigoDecifrado }));
     document.getElementById('salvar-lista').addEventListener('click', () =>
       salvar({ linha: seletorLinha.value, ano: Number(seletorAno.value) }));
-    document.getElementById('trocar-modelo').addEventListener('click', mostrarEscolha);
+    document.getElementById('trocar-modelo').addEventListener('click', () => {
+      telaAjustes.hidden = true;
+      mostrarEscolha();
+    });
     cancelar.addEventListener('click', () => {
       telaEscolha.hidden = true; barraModelo.hidden = false; controle.hidden = false;
+    });
+
+    // ----- Ajustes e reaprender tecla -----
+    const telaAjustes = document.getElementById('ajustes');
+    const seletorAprender = document.getElementById('tecla-aprender');
+    const statusAprendizado = document.getElementById('status-aprendizado');
+    const botaoReaprender = document.getElementById('reaprender');
+
+    function statusAprender(texto, tipo) {
+      statusAprendizado.textContent = texto;
+      statusAprendizado.className = 'status-aprendizado ' + (tipo || '');
+      statusAprendizado.hidden = false;
+    }
+
+    async function carregarAprendiveis() {
+      const teclas = await fetch('/api/teclas/aprendiveis').then((r) => r.json());
+      const opcao = (t) => `<option value="${t.tecla}">${t.rotulo}${t.aprendida ? ' (aprendida)' : ''}</option>`;
+      const anterior = seletorAprender.value;
+      seletorAprender.innerHTML =
+        `<optgroup label="Teclas Comuns">${teclas.filter((t) => t.grupo !== 'servico').map(opcao).join('')}</optgroup>`
+        + `<optgroup label="Teclas de Serviço">${teclas.filter((t) => t.grupo === 'servico').map(opcao).join('')}</optgroup>`;
+      if (anterior) seletorAprender.value = anterior;
+      const aprendidas = teclas.filter((t) => t.aprendida);
+      document.getElementById('sem-aprendidas').hidden = aprendidas.length > 0;
+      document.getElementById('lista-aprendidas').innerHTML = aprendidas
+        .map((t) => `<li>${t.rotulo}<button class="link" data-desfazer="${t.tecla}" type="button">Desfazer</button></li>`)
+        .join('');
+      const marcadas = new Set(aprendidas.map((t) => t.tecla));
+      document.querySelectorAll('button.tecla').forEach((b) => b.classList.toggle('aprendida', marcadas.has(b.dataset.tecla)));
+    }
+
+    document.getElementById('abrir-ajustes').addEventListener('click', () => {
+      document.getElementById('ajustes-modelo').textContent = document.getElementById('descricao-modelo').textContent;
+      statusAprendizado.hidden = true;
+      controle.hidden = true; barraModelo.hidden = true; painelServico.hidden = true;
+      telaAjustes.hidden = false;
+      carregarAprendiveis();
+    });
+    document.getElementById('fechar-ajustes').addEventListener('click', () => {
+      telaAjustes.hidden = true; controle.hidden = false; barraModelo.hidden = false;
+      fetch('/api/modo-servico').then((r) => r.json()).then(atualizarModoServico);
+    });
+
+    botaoReaprender.addEventListener('click', async () => {
+      const tecla = seletorAprender.value;
+      const rotulo = seletorAprender.selectedOptions[0].textContent.replace(' (aprendida)', '');
+      botaoReaprender.disabled = true;
+      statusAprender(`Aguardando sinal… aperte ${rotulo} no controle LG, apontado para o Emissor IR.`);
+      try {
+        const resp = await fetch(`/api/teclas/${encodeURIComponent(tecla)}/aprender`, { method: 'POST' });
+        const corpo = await resp.json().catch(() => ({}));
+        if (resp.ok) statusAprender(`${rotulo} aprendida. O app passa a enviar o sinal do seu controle.`, 'ok');
+        else statusAprender(corpo.mensagem || 'Não foi possível aprender a tecla.', 'erro');
+      } catch (e) {
+        statusAprender('Sem conexão com o servidor.', 'erro');
+      } finally {
+        botaoReaprender.disabled = false;
+        carregarAprendiveis();
+      }
+    });
+
+    document.getElementById('lista-aprendidas').addEventListener('click', async (evento) => {
+      const tecla = evento.target.dataset.desfazer;
+      if (!tecla) return;
+      await fetch(`/api/teclas/${encodeURIComponent(tecla)}/aprendido`, { method: 'DELETE' });
+      statusAprender('Tecla restaurada para o Código IR gerado.', 'ok');
+      carregarAprendiveis();
     });
 
     fetch('/api/modelo/opcoes').then((r) => r.json()).then(({ linhas, anos }) => {

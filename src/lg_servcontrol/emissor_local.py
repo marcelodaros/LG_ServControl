@@ -2,7 +2,7 @@
 
 from tinytuya.Contrib.IRRemoteControlDevice import IRRemoteControlDevice
 
-from lg_servcontrol.codigos_ir import CodigoIR
+from lg_servcontrol.codigos_ir import CodigoIR, CodigoIRAprendido
 from lg_servcontrol.configuracao import ConfiguracaoEmissorIR
 from lg_servcontrol.emissor_ir import ErroComunicacaoEmissorIR
 
@@ -57,7 +57,7 @@ class EmissorIRLocal:
             connection_retry_limit=1,
         )
 
-    def enviar(self, codigo: CodigoIR) -> None:
+    def enviar(self, codigo: CodigoIR | CodigoIRAprendido) -> None:
         base64 = IRRemoteControlDevice.pulses_to_base64(codigo.pulsos())
         self._dispositivo.ultimo_resultado = None
         try:
@@ -68,7 +68,7 @@ class EmissorIRLocal:
         if problema:
             raise ErroComunicacaoEmissorIR(problema)
 
-    def aprender(self, timeout_s: float) -> CodigoIR | None:
+    def aprender(self, timeout_s: float) -> CodigoIRAprendido | None:
         try:
             resposta = self._dispositivo.receive_button(timeout=timeout_s)
         except OSError as erro:
@@ -76,13 +76,10 @@ class EmissorIRLocal:
         problema = _falhou(resposta)
         if problema:
             raise ErroComunicacaoEmissorIR(problema)
-        if not isinstance(resposta, str):
+        if not isinstance(resposta, str) or not resposta:
             return None
         pulsos = IRRemoteControlDevice.base64_to_pulses(resposta)
-        for nec in IRRemoteControlDevice.pulses_to_nec(pulsos):
-            if nec["address"] is not None and nec["address"] < 256:
-                return CodigoIR("NEC", nec["address"], nec["data"])
-        return None
+        return CodigoIRAprendido(pulsos) if pulsos else None
 
     def verificar(self) -> None:
         try:

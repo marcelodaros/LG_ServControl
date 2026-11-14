@@ -48,3 +48,11 @@ _Avoid_: blaster, IR01, controle inteligente, hub
 **Código IR**:
 O sinal infravermelho que corresponde a uma tecla específica.
 _Avoid_: comando IR, sinal
+
+**Código IR Gerado**:
+O Código IR que o app calcula a partir do protocolo da LG para uma tecla.
+_Avoid_: código padrão, código de fábrica
+
+**Código IR Aprendido**:
+O Código IR capturado de um controle real pelo Emissor IR, que substitui o Código IR Gerado daquela tecla.
+_Avoid_: código gravado, código copiado

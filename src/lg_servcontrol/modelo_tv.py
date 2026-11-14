@@ -1,9 +1,7 @@
 """Modelo da TV: decodificação do código LG, opções de linha + ano e persistência."""
 
-import json
 import re
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 LINHAS = ("OLED", "QNED", "NanoCell", "UHD", "Full HD")
 ANOS = tuple(range(2014, 2026))
@@ -86,21 +84,18 @@ def escolher(linha, ano) -> ModeloDaTV:
 
 
 class RepositorioModelo:
-    """Guarda o Modelo da TV escolhido; sem caminho, guarda só em memória."""
+    """Guarda o Modelo da TV escolhido no estado do app."""
 
-    def __init__(self, caminho: Path | None):
-        self._caminho = caminho
-        self._modelo: ModeloDaTV | None = None
-        if caminho and caminho.exists():
-            dados = json.loads(caminho.read_text("utf-8")).get("modelo")
-            if dados:
-                self._modelo = ModeloDaTV(dados["linha"], dados["ano"], dados.get("codigo"))
+    def __init__(self, estado):
+        self._estado = estado
 
     def atual(self) -> ModeloDaTV | None:
-        return self._modelo
+        dados = self._estado.ler("modelo")
+        if not dados:
+            return None
+        return ModeloDaTV(dados["linha"], dados["ano"], dados.get("codigo"))
 
     def salvar(self, modelo: ModeloDaTV) -> None:
-        self._modelo = modelo
-        if self._caminho:
-            dados = {"modelo": {"linha": modelo.linha, "ano": modelo.ano, "codigo": modelo.codigo}}
-            self._caminho.write_text(json.dumps(dados, indent=2, ensure_ascii=False) + "\n", "utf-8")
+        self._estado.gravar(
+            "modelo", {"linha": modelo.linha, "ano": modelo.ano, "codigo": modelo.codigo}
+        )

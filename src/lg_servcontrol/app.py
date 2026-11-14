@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 from lg_servcontrol.codigos_ir import (
+    COMANDOS_LG,
     ENDERECO_LG,
     TECLAS_COMUNS,
     CodigoIR,
@@ -26,7 +27,13 @@ from lg_servcontrol.modelo_tv import (
     decodificar,
     escolher,
 )
-from lg_servcontrol.modo_servico import ModoServico, entrada_para, tecla_de_servico
+from lg_servcontrol.estado import EstadoPersistido, RepositorioAprendidos
+from lg_servcontrol.modo_servico import (
+    TECLAS_DE_SERVICO,
+    ModoServico,
+    entrada_para,
+    tecla_de_servico,
+)
 
 log = logging.getLogger("lg_servcontrol")
 
@@ -45,6 +52,9 @@ def montar_app(
             emissor=None, problema_configuracao=str(erro), caminho_estado=caminho_estado
         )
     return create_app(emissor=fabrica_emissor(config), caminho_estado=caminho_estado)
+
+
+TEMPO_APRENDIZADO_S = 15
 
 
 class EscolhaDoModelo(BaseModel):
@@ -78,7 +88,9 @@ def create_app(
     relogio: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     app = FastAPI(title="LG ServControl")
-    repositorio = RepositorioModelo(caminho_estado)
+    estado = EstadoPersistido(caminho_estado)
+    repositorio = RepositorioModelo(estado)
+    aprendidos = RepositorioAprendidos(estado)
     modo_servico = ModoServico(relogio)
 
     @app.get("/api/modelo")
@@ -134,11 +146,63 @@ def create_app(
             return {"estado": "desconectado", "mensagem": f"O Emissor IR não respondeu: {erro}"}
         return {"estado": "conectado", "mensagem": "Emissor IR respondendo"}
 
+    def _descrever(teclas) -> list[dict]:
+        com_aprendido = aprendidos.teclas()
+        return [
+            {"tecla": t.tecla, "rotulo": t.rotulo, "grupo": t.grupo, "aprendida": t.tecla in com_aprendido}
+            for t in teclas
+        ]
+
     @app.get("/api/teclas")
     def listar_teclas():
-        return [
-            {"tecla": t.tecla, "rotulo": t.rotulo, "grupo": t.grupo} for t in TECLAS_COMUNS
-        ]
+        return _descrever(TECLAS_COMUNS)
+
+    @app.get("/api/teclas/aprendiveis")
+    def listar_teclas_aprendiveis():
+        return _descrever((*TECLAS_COMUNS, *TECLAS_DE_SERVICO))
+
+    def _tecla_existe(tecla: str) -> bool:
+        return tecla in COMANDOS_LG or tecla_de_servico(tecla) is not None
+
+    def _tecla_desconhecida(tecla: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"erro": "tecla_desconhecida", "mensagem": f"Tecla desconhecida: {tecla}"},
+        )
+
+    @app.post("/api/teclas/{tecla}/aprender")
+    def aprender_tecla(tecla: str):
+        if not _tecla_existe(tecla):
+            return _tecla_desconhecida(tecla)
+        if emissor is None:
+            return _nao_configurado()
+        try:
+            codigo = emissor.aprender(TEMPO_APRENDIZADO_S)
+        except ErroComunicacaoEmissorIR as erro:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "erro": "comunicacao_emissor_ir",
+                    "mensagem": f"Falha ao falar com o Emissor IR: {erro}",
+                },
+            )
+        if codigo is None:
+            return JSONResponse(
+                status_code=408,
+                content={
+                    "erro": "aprendizado_expirou",
+                    "mensagem": f"Nenhum sinal recebido em {TEMPO_APRENDIZADO_S} s. Tente de novo.",
+                },
+            )
+        aprendidos.salvar(tecla, codigo)
+        return {"status": "aprendido", "tecla": tecla}
+
+    @app.delete("/api/teclas/{tecla}/aprendido")
+    def desfazer_aprendizado(tecla: str):
+        if not _tecla_existe(tecla):
+            return _tecla_desconhecida(tecla)
+        aprendidos.remover(tecla)
+        return {"status": "restaurado", "tecla": tecla}
 
     def _estado_modo_servico() -> dict:
         ativo = modo_servico.ativo()
@@ -216,19 +280,18 @@ def create_app(
                         "mensagem": f"{servico.rotulo} não se aplica ao Modelo da TV escolhido.",
                     },
                 )
-            falha = _enviar(CodigoIR("NEC", ENDERECO_LG, servico.comando))
+            falha = _enviar(
+                aprendidos.codigo(tecla) or CodigoIR("NEC", ENDERECO_LG, servico.comando)
+            )
             if falha:
                 return falha
             modo_servico.registrar_uso()
             return {"status": "enviado", "modo_servico": _estado_modo_servico()}
 
         try:
-            codigo = codigo_da_tecla(tecla)
+            codigo = aprendidos.codigo(tecla) or codigo_da_tecla(tecla)
         except TeclaDesconhecida:
-            return JSONResponse(
-                status_code=404,
-                content={"erro": "tecla_desconhecida", "mensagem": f"Tecla desconhecida: {tecla}"},
-            )
+            return _tecla_desconhecida(tecla)
         return _enviar(codigo) or {"status": "enviado"}
 
     return app

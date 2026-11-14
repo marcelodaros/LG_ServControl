@@ -74,6 +74,21 @@ class CodigoIR:
         return pulsos
 
 
+@dataclass(frozen=True)
+class CodigoIRAprendido:
+    """Código IR capturado de um controle real, guardado como o sinal bruto."""
+
+    pulsos_brutos: tuple[int, ...]
+    protocolo: str = "aprendido"
+
+    def __init__(self, pulsos):
+        object.__setattr__(self, "pulsos_brutos", tuple(int(p) for p in pulsos))
+        object.__setattr__(self, "protocolo", "aprendido")
+
+    def pulsos(self) -> list[int]:
+        return list(self.pulsos_brutos)
+
+
 class TeclaDesconhecida(KeyError):
     pass
 

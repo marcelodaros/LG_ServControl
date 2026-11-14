@@ -26,16 +26,17 @@ def test_codigo_ir_de_power_tem_os_pulsos_nec_esperados():
     _cliente(emissor).post("/api/teclas/POWER/enviar")
 
     pulsos = emissor.enviados[0].pulsos()
-    # cabeçalho NEC + 32 bits (marca + espaço) + marca final
+    # cabeçalho NEC + 32 bits (marca + espaço) + marca final + silêncio final
     assert pulsos[:2] == [9000, 4500]
-    assert len(pulsos) == 2 + 32 * 2 + 1
+    assert len(pulsos) == 2 + 32 * 2 + 2
     # bytes enviados LSB primeiro: 0x04, 0xFB, 0x08, 0xF7
-    bits = [1 if espaco > 1000 else 0 for espaco in pulsos[3:-1:2]]
+    bits = [1 if espaco > 1000 else 0 for espaco in pulsos[3:-2:2]]
     esperado = []
     for byte in (0x04, 0xFB, 0x08, 0xF7):
         esperado += [(byte >> i) & 1 for i in range(8)]
     assert bits == esperado
-    assert pulsos[-1] == 560
+    assert pulsos[-2] == 560
+    assert pulsos[-1] >= 20000
 
 
 def test_um_pedido_gera_exatamente_um_envio():

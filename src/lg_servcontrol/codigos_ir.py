@@ -13,6 +13,8 @@ _CABECALHO = [9000, 4500]
 _MARCA = 560
 _ESPACO_0 = 560
 _ESPACO_1 = 1690
+# Silêncio após a marca final: fecha o quadro em pares marca/espaço, como o Emissor IR espera.
+_SILENCIO_FINAL = 30000
 
 
 @dataclass(frozen=True)
@@ -36,7 +38,7 @@ class CodigoIR:
             for i in range(8):
                 bit = (byte >> i) & 1
                 pulsos += [_MARCA, _ESPACO_1 if bit else _ESPACO_0]
-        pulsos.append(_MARCA)
+        pulsos += [_MARCA, _SILENCIO_FINAL]
         return pulsos
 
 

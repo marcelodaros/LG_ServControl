@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+
+# Credenciais do Emissor IR (local key) e arquivos do tinytuya wizard
+emissor_ir.json
+devices.json
+tinytuya.json
+snapshot.json
+tuya-raw.json

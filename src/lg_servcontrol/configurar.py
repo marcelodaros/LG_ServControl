@@ -78,20 +78,47 @@ def escolher_dispositivo(dispositivos: list[dict]) -> dict:
         print("Escolha um número da lista.")
 
 
+VERSOES_PROTOCOLO = (3.3, 3.4, 3.5)
+
+
+def detectar_versao(dev_id: str, ip: str, local_key: str) -> float | None:
+    """Testa cada versão do protocolo Tuya até o IR01 responder sem erro."""
+    import tinytuya
+
+    for versao in VERSOES_PROTOCOLO:
+        dispositivo = tinytuya.Device(
+            dev_id, ip, local_key, version=versao, connection_timeout=3, connection_retry_limit=1
+        )
+        resultado = dispositivo.status()
+        dispositivo.close()
+        if isinstance(resultado, dict) and "Error" not in resultado:
+            return versao
+    return None
+
+
 def localizar_na_rede(dispositivo: dict) -> tuple[str, float]:
     import tinytuya
 
     ip = dispositivo.get("ip") or ""
     versao = dispositivo.get("version") or ""
-    if not ip or not versao:
+    if not ip:
         print("Procurando o IR01 na rede local (pode levar alguns segundos)…")
         achado = tinytuya.find_device(dispositivo["id"])
-        ip = ip or (achado.get("ip") or "")
+        ip = achado.get("ip") or ""
         versao = versao or (achado.get("version") or "")
     if not ip:
-        print("Não encontrei o IP automaticamente. Veja o IP do IR01 no seu roteador.")
+        print("Não encontrei o IP automaticamente (o roteador pode bloquear os anúncios).")
+        print("Veja o IP do IR01 na lista de clientes do roteador.")
         ip = perguntar("IP do IR01")
-    return ip, float(versao or 3.3)
+    if not versao:
+        print("Testando as versões do protocolo Tuya…")
+        versao = detectar_versao(dispositivo["id"], ip, dispositivo["key"])
+        if versao is None:
+            sys.exit(
+                f"O IR01 em {ip} não respondeu em nenhuma versão {VERSOES_PROTOCOLO}. "
+                "Confira o IP e se a local key é a atual (ela muda quando o aparelho é pareado de novo)."
+            )
+    return ip, float(versao)
 
 
 def detectar_tipo_controle(dev_id: str, ip: str, local_key: str, versao: float) -> int:

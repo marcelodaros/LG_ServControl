@@ -22,7 +22,7 @@ INSTRUCOES_TUYA = """
 Para obter a local key do IR01 é preciso uma conta de desenvolvedor Tuya (gratuita):
 
   1. Garanta que o IR01 já está pareado no app Smart Life (ou Tuya Smart) e funcionando.
-  2. Crie uma conta em https://iot.tuya.com e entre.
+  2. Crie uma conta em https://platform.tuya.com e entre.
   3. Cloud › Development › Create Cloud Project:
        - Development Method: Smart Home
        - Data Center: o mesmo da sua conta do app (no Brasil, normalmente "Western America")

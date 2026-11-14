@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
@@ -7,7 +8,13 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
-from lg_servcontrol.codigos_ir import TECLAS_COMUNS, TeclaDesconhecida, codigo_da_tecla
+from lg_servcontrol.codigos_ir import (
+    ENDERECO_LG,
+    TECLAS_COMUNS,
+    CodigoIR,
+    TeclaDesconhecida,
+    codigo_da_tecla,
+)
 from lg_servcontrol.configuracao import ConfiguracaoEmissorIR, ConfiguracaoInvalida, carregar
 from lg_servcontrol.emissor_ir import EmissorIR, ErroComunicacaoEmissorIR
 from lg_servcontrol.modelo_tv import (
@@ -19,6 +26,7 @@ from lg_servcontrol.modelo_tv import (
     decodificar,
     escolher,
 )
+from lg_servcontrol.modo_servico import ModoServico, entrada_para, tecla_de_servico
 
 log = logging.getLogger("lg_servcontrol")
 
@@ -49,6 +57,10 @@ class CodigoDoModelo(BaseModel):
     codigo: str = ""
 
 
+class AtivacaoModoServico(BaseModel):
+    confirmo_risco: bool = False
+
+
 def _codigo_nao_reconhecido(codigo: str) -> JSONResponse:
     return JSONResponse(
         status_code=422,
@@ -63,9 +75,11 @@ def create_app(
     emissor: EmissorIR | None,
     problema_configuracao: str | None = None,
     caminho_estado: Path | None = None,
+    relogio: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     app = FastAPI(title="LG ServControl")
     repositorio = RepositorioModelo(caminho_estado)
+    modo_servico = ModoServico(relogio)
 
     @app.get("/api/modelo")
     def modelo_atual():
@@ -126,15 +140,47 @@ def create_app(
             {"tecla": t.tecla, "rotulo": t.rotulo, "grupo": t.grupo} for t in TECLAS_COMUNS
         ]
 
-    @app.post("/api/teclas/{tecla}/enviar")
-    def enviar_tecla(tecla: str):
-        try:
-            codigo = codigo_da_tecla(tecla)
-        except TeclaDesconhecida:
+    def _estado_modo_servico() -> dict:
+        ativo = modo_servico.ativo()
+        entrada = entrada_para(repositorio.atual()) if ativo else None
+        return {
+            "ativo": ativo,
+            "segundos_restantes": modo_servico.segundos_restantes(),
+            "teclas": [{"tecla": t.tecla, "rotulo": t.rotulo} for t in entrada.teclas] if entrada else [],
+            "menus": (
+                [{"menu": m.menu, "tecla": m.tecla, "senhas": list(m.senhas)} for m in entrada.menus]
+                if entrada else []
+            ),
+        }
+
+    @app.get("/api/modo-servico")
+    def consultar_modo_servico():
+        return _estado_modo_servico()
+
+    @app.post("/api/modo-servico/ativar")
+    def ativar_modo_servico(pedido: AtivacaoModoServico):
+        if not pedido.confirmo_risco:
             return JSONResponse(
-                status_code=404,
-                content={"erro": "tecla_desconhecida", "mensagem": f"Tecla desconhecida: {tecla}"},
+                status_code=422,
+                content={
+                    "erro": "confirmacao_necessaria",
+                    "mensagem": "Confirme que entende o risco de alterar configurações de fábrica.",
+                },
             )
+        if entrada_para(repositorio.atual()) is None:
+            return JSONResponse(
+                status_code=409,
+                content={"erro": "modelo_nao_escolhido", "mensagem": "Escolha o Modelo da TV primeiro."},
+            )
+        modo_servico.ativar()
+        return _estado_modo_servico()
+
+    @app.post("/api/modo-servico/desativar")
+    def desativar_modo_servico():
+        modo_servico.desativar()
+        return _estado_modo_servico()
+
+    def _enviar(codigo) -> JSONResponse | None:
         if emissor is None:
             return _nao_configurado()
         try:
@@ -147,6 +193,42 @@ def create_app(
                     "mensagem": f"Falha ao falar com o Emissor IR: {erro}",
                 },
             )
-        return {"status": "enviado"}
+        return None
+
+    @app.post("/api/teclas/{tecla}/enviar")
+    def enviar_tecla(tecla: str):
+        servico = tecla_de_servico(tecla)
+        if servico is not None:
+            entrada = entrada_para(repositorio.atual())
+            if not modo_servico.ativo():
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "erro": "modo_servico_inativo",
+                        "mensagem": "Ative o Modo Serviço para usar as Teclas de Serviço.",
+                    },
+                )
+            if entrada is None or servico not in entrada.teclas:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "erro": "tecla_nao_aplicavel",
+                        "mensagem": f"{servico.rotulo} não se aplica ao Modelo da TV escolhido.",
+                    },
+                )
+            falha = _enviar(CodigoIR("NEC", ENDERECO_LG, servico.comando))
+            if falha:
+                return falha
+            modo_servico.registrar_uso()
+            return {"status": "enviado", "modo_servico": _estado_modo_servico()}
+
+        try:
+            codigo = codigo_da_tecla(tecla)
+        except TeclaDesconhecida:
+            return JSONResponse(
+                status_code=404,
+                content={"erro": "tecla_desconhecida", "mensagem": f"Tecla desconhecida: {tecla}"},
+            )
+        return _enviar(codigo) or {"status": "enviado"}
 
     return app

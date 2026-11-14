@@ -118,6 +118,40 @@
     .resultado.erro { background: #3b1414; color: #ef9a9a; }
     .dica { font-size: 13px !important; background: #1f2230; padding: 10px 12px; border-radius: 12px; }
 
+    /* ----- Modo Serviço ----- */
+    .abrir-servico {
+      border: 1px solid #5c1f1f; background: transparent; color: #ef9a9a; border-radius: 12px;
+      padding: 12px; font: 600 13px inherit; font-family: inherit; letter-spacing: .6px; cursor: pointer;
+    }
+    .painel-servico {
+      width: 100%; max-width: 340px; margin-bottom: 12px; border: 1px solid #7f1d1d; background: #1d0f10;
+      border-radius: 24px; padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .painel-servico header { display: flex; justify-content: space-between; align-items: baseline; }
+    .painel-servico h2 { margin: 0; font-size: 16px; color: #ff8a80; letter-spacing: .4px; }
+    .painel-servico .tempo { font-size: 13px; color: #ef9a9a; font-variant-numeric: tabular-nums; }
+    .teclas-servico { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .teclas-servico .tecla { background: var(--vermelho); font-size: 14px; letter-spacing: .5px; min-height: 52px; }
+    .teclas-servico .tecla:active { background: #b71c1c; }
+    .senhas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #f3c1bd; }
+    .senhas strong { color: #fff; font-variant-numeric: tabular-nums; letter-spacing: 1px; }
+    .desativar { background: none; border: 0; color: #ef9a9a; font: 600 13px inherit; font-family: inherit; cursor: pointer; padding: 6px 0; align-self: flex-start; }
+
+    .fundo-dialogo {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, .7); display: flex; align-items: center;
+      justify-content: center; padding: 16px; z-index: 10;
+    }
+    .dialogo {
+      width: 100%; max-width: 340px; background: #1d0f10; border: 1px solid #7f1d1d; border-radius: 20px;
+      padding: 20px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .dialogo h2 { margin: 0; font-size: 18px; color: #ff8a80; }
+    .dialogo p { margin: 0; font-size: 14px; line-height: 1.5; color: #f3d6d3; }
+    .dialogo .acoes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+    .dialogo button { border: 0; border-radius: 12px; padding: 13px; font: 600 14px inherit; font-family: inherit; cursor: pointer; }
+    .dialogo .cancelar { background: var(--tecla); color: var(--texto); }
+    .dialogo .ativar { background: var(--vermelho); color: #fff; }
+
     .retorno {
       position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
       max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 999px; font-size: 14px;
@@ -159,6 +193,31 @@
   <div class="modelo-atual" hidden>
     <span>Modelo: <strong id="descricao-modelo"></strong></span>
     <button class="link" id="trocar-modelo" type="button">Trocar</button>
+  </div>
+
+  <section class="painel-servico" id="painel-servico" aria-label="Modo Serviço" hidden>
+    <header>
+      <h2>MODO SERVIÇO</h2>
+      <span class="tempo" id="tempo-servico" aria-live="off"></span>
+    </header>
+    <div class="teclas-servico" id="teclas-servico"></div>
+    <ul class="senhas" id="senhas-servico"></ul>
+    <button class="desativar" id="desativar-servico" type="button">Desativar Modo Serviço</button>
+  </section>
+
+  <div class="fundo-dialogo" id="confirmar-servico" role="dialog" aria-modal="true" aria-labelledby="titulo-risco" hidden>
+    <div class="dialogo">
+      <h2 id="titulo-risco">Ativar o Modo Serviço?</h2>
+      <p>As Teclas de Serviço abrem os Menus de Serviço da TV, onde ficam as configurações de fábrica
+        (região, painel, modo hotel e outras).</p>
+      <p><strong>Um ajuste errado pode deixar a TV inutilizável.</strong> Anote os valores antes de mudar
+        qualquer coisa e só altere o que você conhece.</p>
+      <p>O Modo Serviço desliga sozinho depois de 5 minutos sem uso de Tecla de Serviço.</p>
+      <div class="acoes">
+        <button class="cancelar" id="cancelar-servico" type="button">Cancelar</button>
+        <button class="ativar" id="ativar-servico" type="button">Ativar</button>
+      </div>
+    </div>
   </div>
 
   <main class="controle" aria-label="Controle remoto LG" hidden>
@@ -235,6 +294,8 @@
       <button class="tecla" data-tecla="PARAR" aria-label="Parar"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
       <button class="tecla" data-tecla="AVANCAR" aria-label="Avançar"><svg viewBox="0 0 24 24"><path d="M13 19l7-7-7-7z"/><path d="M4 19l7-7-7-7z"/></svg></button>
     </div>
+
+    <button class="abrir-servico" id="abrir-servico" type="button">MODO SERVIÇO</button>
   </main>
 
   <div class="retorno" role="status" aria-live="polite"></div>
@@ -341,20 +402,76 @@
       if (modelo) mostrarControle(modelo); else mostrarEscolha();
     });
 
-    // ----- Teclas -----
-    document.querySelectorAll('button.tecla').forEach((botao) => {
-      botao.addEventListener('click', async () => {
-        const tecla = botao.dataset.tecla;
-        if (navigator.vibrate) navigator.vibrate(10);
-        try {
-          const resp = await fetch(`/api/teclas/${encodeURIComponent(tecla)}/enviar`, { method: 'POST' });
-          const corpo = await resp.json().catch(() => ({}));
-          if (resp.ok) mostrar('Enviado ao Emissor IR', 'ok');
-          else mostrar(corpo.mensagem || 'Erro ao enviar', 'erro');
-        } catch (e) {
-          mostrar('Sem conexão com o servidor', 'erro');
+    // ----- Modo Serviço -----
+    const painelServico = document.getElementById('painel-servico');
+    const dialogoServico = document.getElementById('confirmar-servico');
+    const tempoServico = document.getElementById('tempo-servico');
+    const abrirServico = document.getElementById('abrir-servico');
+    let fimServico = 0;
+    let relogioServico;
+
+    function formatarTempo(ms) {
+      const s = Math.max(0, Math.ceil(ms / 1000));
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    }
+
+    function atualizarModoServico(estado) {
+      clearInterval(relogioServico);
+      painelServico.hidden = !estado.ativo;
+      abrirServico.hidden = estado.ativo;
+      if (!estado.ativo) return;
+      document.getElementById('teclas-servico').innerHTML = estado.teclas
+        .map((t) => `<button class="tecla" data-tecla="${t.tecla}">${t.rotulo}</button>`).join('');
+      document.getElementById('senhas-servico').innerHTML = estado.menus
+        .map((m) => `<li>${m.menu}: senha <strong>${m.senhas[0]}</strong>`
+          + (m.senhas.length > 1 ? ` (se não abrir: ${m.senhas.slice(1).join(', ')})` : '') + '</li>').join('');
+      fimServico = Date.now() + estado.segundos_restantes * 1000;
+      const tick = () => {
+        const resta = fimServico - Date.now();
+        tempoServico.textContent = `desliga em ${formatarTempo(resta)}`;
+        if (resta <= 0) {
+          clearInterval(relogioServico);
+          fetch('/api/modo-servico').then((r) => r.json()).then(atualizarModoServico);
         }
+      };
+      tick();
+      relogioServico = setInterval(tick, 1000);
+    }
+
+    abrirServico.addEventListener('click', () => { dialogoServico.hidden = false; });
+    document.getElementById('cancelar-servico').addEventListener('click', () => { dialogoServico.hidden = true; });
+    document.getElementById('ativar-servico').addEventListener('click', async () => {
+      dialogoServico.hidden = true;
+      const resp = await fetch('/api/modo-servico/ativar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmo_risco: true }),
       });
+      const corpo = await resp.json();
+      if (resp.ok) { atualizarModoServico(corpo); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+      else mostrar(corpo.mensagem || 'Não foi possível ativar o Modo Serviço', 'erro');
+    });
+    document.getElementById('desativar-servico').addEventListener('click', async () => {
+      const resp = await fetch('/api/modo-servico/desativar', { method: 'POST' });
+      atualizarModoServico(await resp.json());
+    });
+    fetch('/api/modo-servico').then((r) => r.json()).then(atualizarModoServico);
+
+    // ----- Teclas (comuns e de serviço) -----
+    document.addEventListener('click', async (evento) => {
+      const botao = evento.target.closest('button.tecla');
+      if (!botao) return;
+      const tecla = botao.dataset.tecla;
+      if (navigator.vibrate) navigator.vibrate(10);
+      try {
+        const resp = await fetch(`/api/teclas/${encodeURIComponent(tecla)}/enviar`, { method: 'POST' });
+        const corpo = await resp.json().catch(() => ({}));
+        if (resp.ok) mostrar('Enviado ao Emissor IR', 'ok');
+        else mostrar(corpo.mensagem || 'Erro ao enviar', 'erro');
+        if (corpo.modo_servico) atualizarModoServico(corpo.modo_servico);
+        if (corpo.erro === 'modo_servico_inativo') atualizarModoServico({ ativo: false });
+      } catch (e) {
+        mostrar('Sem conexão com o servidor', 'erro');
+      }
     });
   </script>
 </body>

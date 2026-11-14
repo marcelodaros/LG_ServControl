@@ -20,6 +20,7 @@
       --raio: 14px;
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    [hidden] { display: none !important; }
     html, body { margin: 0; background: var(--fundo); }
     body {
       min-height: 100vh; display: flex; flex-direction: column; align-items: center;
@@ -85,6 +86,38 @@
     .midia { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
     .midia .tecla { min-height: 44px; }
 
+    .modelo-atual {
+      width: 100%; max-width: 340px; display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; padding: 0 6px; font-size: 13px; color: var(--texto-fraco);
+    }
+    .modelo-atual strong { color: var(--texto); font-weight: 600; }
+    .link { background: none; border: 0; color: #8ab4f8; font: inherit; font-weight: 600; cursor: pointer;
+            padding: 8px 4px; }
+
+    .escolha {
+      width: 100%; max-width: 340px; background: var(--corpo); border: 1px solid var(--borda);
+      border-radius: 24px; padding: 22px 20px; display: flex; flex-direction: column; gap: 14px;
+    }
+    .escolha h1 { margin: 0; font-size: 20px; }
+    .escolha p { margin: 0; color: var(--texto-fraco); font-size: 14px; line-height: 1.45; }
+    .escolha label { font-size: 13px; color: var(--texto-fraco); display: flex; flex-direction: column; gap: 6px; }
+    .escolha input, .escolha select {
+      background: var(--tecla); border: 1px solid var(--borda); color: var(--texto); border-radius: 12px;
+      font: 16px inherit; font-family: inherit; padding: 12px; width: 100%;
+    }
+    .escolha input { text-transform: uppercase; letter-spacing: .5px; }
+    .escolha .botao {
+      border: 0; border-radius: 12px; padding: 13px; font: 600 15px inherit; font-family: inherit;
+      background: #3d5afe; color: #fff; cursor: pointer;
+    }
+    .escolha .botao.secundario { background: var(--tecla); color: var(--texto); }
+    .escolha .dupla { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; }
+    .divisor { display: flex; align-items: center; gap: 10px; color: var(--texto-fraco); font-size: 12px; }
+    .divisor::before, .divisor::after { content: ""; flex: 1; height: 1px; background: var(--borda); }
+    .resultado { padding: 12px; border-radius: 12px; background: #16261a; color: #a5d6a7; font-size: 14px; }
+    .resultado.erro { background: #3b1414; color: #ef9a9a; }
+    .dica { font-size: 13px !important; background: #1f2230; padding: 10px 12px; border-radius: 12px; }
+
     .retorno {
       position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%);
       max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 999px; font-size: 14px;
@@ -99,7 +132,36 @@
 <body>
   <div class="aviso" role="alert" hidden></div>
 
-  <main class="controle" aria-label="Controle remoto LG">
+  <section class="escolha" id="escolher-modelo" aria-labelledby="titulo-modelo" hidden>
+    <h1 id="titulo-modelo">Qual é a sua TV?</h1>
+    <p>O modelo define quais Teclas de Serviço e senhas valem para a sua TV.</p>
+
+    <label>Código do modelo
+      <input id="codigo-modelo" placeholder="Ex.: OLED55C1PSA" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    </label>
+    <button class="botao" id="usar-codigo" type="button">Usar este código</button>
+    <div class="resultado" id="resultado-codigo" role="status" hidden></div>
+    <button class="botao" id="confirmar-codigo" type="button" hidden>Confirmar</button>
+
+    <div class="divisor">ou escolha na lista</div>
+
+    <div class="dupla">
+      <label>Linha <select id="linha-modelo"></select></label>
+      <label>Ano <select id="ano-modelo"></select></label>
+    </div>
+    <button class="botao secundario" id="salvar-lista" type="button">Salvar linha e ano</button>
+
+    <p class="dica">Onde achar o modelo: na etiqueta atrás da TV, ou na própria TV em
+      Configurações › Suporte › Informações da TV.</p>
+    <button class="link" id="cancelar-troca" type="button" hidden>Cancelar</button>
+  </section>
+
+  <div class="modelo-atual" hidden>
+    <span>Modelo: <strong id="descricao-modelo"></strong></span>
+    <button class="link" id="trocar-modelo" type="button">Trocar</button>
+  </div>
+
+  <main class="controle" aria-label="Controle remoto LG" hidden>
     <div class="linha">
       <button class="tecla redondo power" data-tecla="POWER" aria-label="Ligar/desligar">
         <svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
@@ -197,6 +259,89 @@
       esconder = setTimeout(() => retorno.classList.remove('visivel'), tipo === 'erro' ? 4000 : 1200);
     }
 
+    // ----- Modelo da TV -----
+    const telaEscolha = document.getElementById('escolher-modelo');
+    const controle = document.querySelector('.controle');
+    const barraModelo = document.querySelector('.modelo-atual');
+    const campoCodigo = document.getElementById('codigo-modelo');
+    const resultado = document.getElementById('resultado-codigo');
+    const confirmar = document.getElementById('confirmar-codigo');
+    const seletorLinha = document.getElementById('linha-modelo');
+    const seletorAno = document.getElementById('ano-modelo');
+    const cancelar = document.getElementById('cancelar-troca');
+    let codigoDecifrado = null;
+    let temModelo = false;
+
+    function mostrarControle(modelo) {
+      temModelo = true;
+      document.getElementById('descricao-modelo').textContent = modelo.descricao;
+      telaEscolha.hidden = true;
+      barraModelo.hidden = false;
+      controle.hidden = false;
+    }
+
+    function mostrarEscolha() {
+      telaEscolha.hidden = false;
+      barraModelo.hidden = true;
+      controle.hidden = true;
+      cancelar.hidden = !temModelo;
+      resultado.hidden = true;
+      confirmar.hidden = true;
+      codigoDecifrado = null;
+    }
+
+    function mostrarResultado(texto, erro) {
+      resultado.textContent = texto;
+      resultado.classList.toggle('erro', erro);
+      resultado.hidden = false;
+    }
+
+    async function salvar(escolha) {
+      const resp = await fetch('/api/modelo', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(escolha),
+      });
+      const corpo = await resp.json();
+      if (resp.ok) mostrarControle(corpo.modelo);
+      else mostrarResultado(corpo.mensagem || 'Não foi possível salvar.', true);
+    }
+
+    document.getElementById('usar-codigo').addEventListener('click', async () => {
+      const codigo = campoCodigo.value.trim();
+      confirmar.hidden = true;
+      const resp = await fetch('/api/modelo/decodificar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo }),
+      });
+      const corpo = await resp.json();
+      if (resp.ok) {
+        codigoDecifrado = corpo.codigo;
+        mostrarResultado(`${corpo.codigo}: ${corpo.linha}, ${corpo.ano}. Está certo?`, false);
+        confirmar.hidden = false;
+      } else {
+        codigoDecifrado = null;
+        mostrarResultado(corpo.mensagem, true);
+        seletorLinha.focus();
+      }
+    });
+    campoCodigo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('usar-codigo').click();
+    });
+    confirmar.addEventListener('click', () => codigoDecifrado && salvar({ codigo: codigoDecifrado }));
+    document.getElementById('salvar-lista').addEventListener('click', () =>
+      salvar({ linha: seletorLinha.value, ano: Number(seletorAno.value) }));
+    document.getElementById('trocar-modelo').addEventListener('click', mostrarEscolha);
+    cancelar.addEventListener('click', () => {
+      telaEscolha.hidden = true; barraModelo.hidden = false; controle.hidden = false;
+    });
+
+    fetch('/api/modelo/opcoes').then((r) => r.json()).then(({ linhas, anos }) => {
+      seletorLinha.innerHTML = linhas.map((l) => `<option>${l}</option>`).join('');
+      seletorAno.innerHTML = anos.slice().reverse().map((a) => `<option>${a}</option>`).join('');
+    });
+    fetch('/api/modelo').then((r) => r.json()).then(({ modelo }) => {
+      if (modelo) mostrarControle(modelo); else mostrarEscolha();
+    });
+
+    // ----- Teclas -----
     document.querySelectorAll('button.tecla').forEach((botao) => {
       botao.addEventListener('click', async () => {
         const tecla = botao.dataset.tecla;

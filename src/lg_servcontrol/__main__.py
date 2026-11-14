@@ -11,7 +11,7 @@ import uvicorn
 
 from lg_servcontrol.app import create_app, montar_app
 from lg_servcontrol.codigos_ir import CodigoIR
-from lg_servcontrol.configuracao import CAMINHO_PADRAO
+from lg_servcontrol.configuracao import CAMINHO_ESTADO, CAMINHO_PADRAO
 from lg_servcontrol.emissor_ir import EmissorIRFalso
 
 log = logging.getLogger("lg_servcontrol")
@@ -30,11 +30,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     porta = int(os.environ.get("PORT", "8000"))
     if os.environ.get("LG_SERVCONTROL_SIMULAR") == "1":
-        app = create_app(emissor=EmissorIRDeLog())
+        app = create_app(emissor=EmissorIRDeLog(), caminho_estado=CAMINHO_ESTADO)
     else:
         from lg_servcontrol.emissor_local import EmissorIRLocal
 
-        app = montar_app(CAMINHO_PADRAO, EmissorIRLocal)
+        app = montar_app(CAMINHO_PADRAO, EmissorIRLocal, caminho_estado=CAMINHO_ESTADO)
     uvicorn.run(app, host="0.0.0.0", port=porta)
 
 

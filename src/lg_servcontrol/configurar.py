@@ -200,7 +200,7 @@ def main() -> None:
     else:
         print(
             "\nO teste não passou. Confira se o IR01 e o Mac estão na mesma rede Wi‑Fi e se o IP"
-            " não mudou. Se o firmware recusar controle local, a alternativa é a Tuya Cloud (#8)."
+            " não mudou. Se o firmware recusar controle local, veja o ADR 0001 (o #8 pode ser reaberto)."
         )
         sys.exit(1)
 

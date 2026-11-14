@@ -4,10 +4,42 @@ from dataclasses import dataclass
 
 ENDERECO_LG = 0x04
 
-# Comandos NEC das teclas conhecidas. Cresce com os próximos tickets.
-COMANDOS_LG: dict[str, int] = {
-    "POWER": 0x08,
-}
+@dataclass(frozen=True)
+class Tecla:
+    tecla: str
+    comando: int
+    rotulo: str
+    grupo: str
+
+
+# Teclas Comuns do controle LG convencional (comando NEC, endereço 0x04).
+TECLAS_COMUNS: tuple[Tecla, ...] = (
+    Tecla("POWER", 0x08, "Ligar/desligar", "topo"),
+    Tecla("INPUT", 0x0B, "Entrada", "topo"),
+    *(Tecla(str(n), 0x10 + n, str(n), "numeros") for n in (1, 2, 3, 4, 5, 6, 7, 8, 9, 0)),
+    Tecla("VOL_MAIS", 0x02, "Volume +", "volume"),
+    Tecla("VOL_MENOS", 0x03, "Volume −", "volume"),
+    Tecla("MUDO", 0x09, "Mudo", "volume"),
+    Tecla("CANAL_MAIS", 0x00, "Canal +", "canal"),
+    Tecla("CANAL_MENOS", 0x01, "Canal −", "canal"),
+    Tecla("HOME", 0x7C, "Home", "atalhos"),
+    Tecla("CONFIGURACOES", 0x43, "Configurações", "atalhos"),
+    Tecla("GUIA", 0xAB, "Guia", "atalhos"),
+    Tecla("INFO", 0xAA, "Info", "atalhos"),
+    Tecla("CIMA", 0x40, "Cima", "navegacao"),
+    Tecla("BAIXO", 0x41, "Baixo", "navegacao"),
+    Tecla("ESQUERDA", 0x07, "Esquerda", "navegacao"),
+    Tecla("DIREITA", 0x06, "Direita", "navegacao"),
+    Tecla("OK", 0x44, "OK", "navegacao"),
+    Tecla("VOLTAR", 0x28, "Voltar", "navegacao"),
+    Tecla("RETROCEDER", 0x8F, "Retroceder", "midia"),
+    Tecla("PLAY", 0xB0, "Play", "midia"),
+    Tecla("PAUSA", 0xBA, "Pausa", "midia"),
+    Tecla("PARAR", 0xB1, "Parar", "midia"),
+    Tecla("AVANCAR", 0x8E, "Avançar", "midia"),
+)
+
+COMANDOS_LG: dict[str, int] = {t.tecla: t.comando for t in TECLAS_COMUNS}
 
 _CABECALHO = [9000, 4500]
 _MARCA = 560

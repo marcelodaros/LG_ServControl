@@ -82,17 +82,32 @@ VERSOES_PROTOCOLO = (3.3, 3.4, 3.5)
 
 
 def detectar_versao(dev_id: str, ip: str, local_key: str) -> float | None:
-    """Testa cada versão do protocolo Tuya até o IR01 responder sem erro."""
+    """Descobre a versão do protocolo Tuya do IR01.
+
+    3.4 e 3.5 fazem um handshake que confirma a chave, então são testadas primeiro.
+    Na 3.3 um emissor IR costuma não devolver estado nenhum (resposta vazia), o que
+    não distingue chave certa de errada: se a conexão abre sem erro, aceita 3.3 e o
+    envio de teste do POWER confirma.
+    """
     import tinytuya
 
-    for versao in VERSOES_PROTOCOLO:
+    def consultar(versao: float):
         dispositivo = tinytuya.Device(
             dev_id, ip, local_key, version=versao, connection_timeout=3, connection_retry_limit=1
         )
-        resultado = dispositivo.status()
-        dispositivo.close()
+        try:
+            return dispositivo.status()
+        finally:
+            dispositivo.close()
+
+    for versao in (3.5, 3.4):
+        resultado = consultar(versao)
         if isinstance(resultado, dict) and "Error" not in resultado:
             return versao
+
+    resultado = consultar(3.3)
+    if not (isinstance(resultado, dict) and "Error" in resultado):
+        return 3.3
     return None
 
 

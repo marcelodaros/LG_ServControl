@@ -33,6 +33,18 @@ def _falhou(resultado) -> str | None:
     return None
 
 
+# Erros da tinytuya que significam "não deu para falar com o IR01": falha de conexão,
+# timeout, inalcançável, chave ou versão erradas. Outros (ex.: 900, resposta que não é
+# JSON) mostram que o IR01 respondeu — emissores IR não têm estado para informar.
+_ERROS_DE_CONEXAO = {"901", "902", "905", "914"}
+
+
+def _sem_conexao(resultado) -> str | None:
+    if isinstance(resultado, dict) and str(resultado.get("Err")) in _ERROS_DE_CONEXAO:
+        return _falhou(resultado)
+    return None
+
+
 class EmissorIRLocal:
     def __init__(self, config: ConfiguracaoEmissorIR):
         self._dispositivo = _DispositivoIR(
@@ -77,6 +89,6 @@ class EmissorIRLocal:
             resultado = self._dispositivo.status()
         except OSError as erro:
             raise ErroComunicacaoEmissorIR(str(erro)) from erro
-        problema = _falhou(resultado)
+        problema = _sem_conexao(resultado)
         if problema:
             raise ErroComunicacaoEmissorIR(problema)
